@@ -1,17 +1,17 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
-<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css"/>
 
 <style>
 
-.axis {
+#play-slider-container .axis {
   font: 10px sans-serif;
   -webkit-user-select: none;
   -moz-user-select: none;
   user-select: none;
 }
 
-.axis .domain {
+#play-slider-container .axis .domain {
   fill: none;
   stroke: #000;
   stroke-opacity: .3;
@@ -19,14 +19,14 @@
   stroke-linecap: round;
 }
 
-.axis .halo {
+#play-slider-container .axis .halo {
   fill: none;
   stroke: #ddd;
   stroke-width: 8px;
   stroke-linecap: round;
 }
 
-.slider .handle {
+#play-slider-container .slider .handle {
   fill: #fff;
   stroke: #000;
   stroke-opacity: .5;
@@ -47,10 +47,12 @@
 
 </style>
 <body>
-<div id="play_button_container">
-  <i id="play_button" type="button" class="fa fa-play"></i>
+<div id="play-slider-container">
+  <div id="play_button_container">
+    <i id="play_button" type="button" class="fa fa-play"></i>
+  </div>
+  <div id="slider"></div>
 </div>
-<div id="slider"></div>
 </body>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
 <script>
@@ -110,7 +112,7 @@ var handle = slider.append("circle")
 
 
 d3.select("#play_button")
-  .on("click", play);
+  .on("click", play(available_years));
 
 function get_available_tick_labels(available_years) {
   return function(d) {
@@ -151,34 +153,38 @@ function get_brushended(available_years) {
   }
 }
 
-function play() {
-  d3.select("#play_button")
-    .attr("class", "fa fa-pause")
-    .on("click", pause);
+function play(available_years) {
+  return function() {
+    d3.select("#play_button")
+      .attr("class", "fa fa-pause")
+      .on("click", pause(available_years));
 
-  var start_year = closest(brush.extent()[0], available_years);
-  var start_ind = available_years.indexOf(start_year);
-  var loop_start_ind;
-  if (start_ind == available_years.length - 1) { loop_start_ind = 1; } 
-  else { loop_start_ind = start_ind + 1; } 
+    var start_year = closest(brush.extent()[0], available_years);
+    var start_ind = available_years.indexOf(start_year);
+    var loop_start_ind;
+    if (start_ind == available_years.length - 1) { loop_start_ind = 1; } 
+    else { loop_start_ind = start_ind + 1; } 
 
-  slider.call(brush.event)
-        .call(brush.extent([available_years[loop_start_ind-1], available_years[loop_start_ind-1]]))
+    slider.call(brush.event)
+          .call(brush.extent([available_years[loop_start_ind-1], available_years[loop_start_ind-1]]))
 
-  var trans = slider.call(brush.event);
-  for (var i = loop_start_ind; i < available_years.length; i++) {
-    trans = trans.transition() // chain the transitions
-        .duration(750)
-        .call(brush.extent([available_years[i], available_years[i]]))
-        .call(brush.event)
+    var trans = slider.call(brush.event);
+    for (var i = loop_start_ind; i < available_years.length; i++) {
+      trans = trans.transition() // chain the transitions
+          .duration(750)
+          .call(brush.extent([available_years[i], available_years[i]]))
+          .call(brush.event)
+    }
+    trans.each("end", function() { d3.select("#play_button").attr("class", "fa fa-play").on("click", play(available_years)) });
   }
-  trans.each("end", function() { d3.select("#play_button").attr("class", "fa fa-play").on("click", play) });
 }
 
-function pause() {
-  slider.transition()
-    .call(get_brushended(available_years));
-  d3.select("#play_button").attr("class", "fa fa-play").on("click", play);
+function pause(available_years) {
+  return function() {
+    slider.transition()
+      .call(get_brushended(available_years));
+    d3.select("#play_button").attr("class", "fa fa-play").on("click", play(available_years));
+  }
 }
 
 </script>
