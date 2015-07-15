@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+.axis {
+  font: 10px sans-serif;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+}
+
+.axis .domain {
+  fill: none;
+  stroke: #000;
+  stroke-opacity: .3;
+  stroke-width: 10px;
+  stroke-linecap: round;
+}
+
+.axis .halo {
+  fill: none;
+  stroke: #ddd;
+  stroke-width: 8px;
+  stroke-linecap: round;
+}
+
+.slider .handle {
+  fill: #fff;
+  stroke: #000;
+  stroke-opacity: .5;
+  stroke-width: 1.25px;
+  cursor: crosshair;
+}
+
+</style>
+<body>
+<span>
+  <div>
+  <input id="play_button" type="button" value="Play"/>
+</div>
+</span>
+<span>
+<div id="slider"></div>
+</span>
+</body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
+<script>
+// this code relies heavily on http://bl.ocks.org/mbostock/6452972
+
+var available_years = [2004, 2005, 2008, 2010, 2011, 2012];
+var margin = {top: 5, right: 50, bottom: 50, left: 50},
+    width = 600 - margin.left - margin.right,
+    height = 200 - margin.bottom - margin.top;
+
+var x = d3.scale.linear()
+    .domain([2004, 2012])
+    .range([0, width])
+    .clamp(true);
+
+var brush = d3.svg.brush()
+    .x(x)
+    .extent([available_years[0], available_years[0]])
+    .on("brush", brushed)
+    .on("brushend", get_brushended(available_years));
+
+
+var svg = d3.select("#slider").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+svg.append("g")
+    .attr("class", "x axis")
+    .attr("transform", "translate(0," + height / 2 + ")")
+    .call(d3.svg.axis()
+      .scale(x)
+      .orient("bottom")
+      .tickFormat(get_available_tick_labels(available_years))
+      .tickSize(0)
+      .tickPadding(12))
+  .select(".domain")
+  .select(function() { return this.parentNode.appendChild(this.cloneNode(true)); })
+    .attr("class", "halo");
+
+var slider = svg.append("g")
+    .attr("class", "slider")
+    .call(brush);
+
+slider.selectAll(".extent,.resize")
+    .remove();
+
+slider.select(".background")
+    .attr("height", height);
+
+var handle = slider.append("circle")
+    .attr("class", "handle")
+    .attr("transform", "translate(0," + height / 2 + ")")
+    .attr("r", 9);
+
+
+
+d3.select("#play_button")
+  .on("click", play);
+
+function get_available_tick_labels(available_years) {
+  return function(d) {
+    if (available_years.indexOf(d) != -1) { return d; } 
+    else { return ''; }
+  }
+}
+
+function closest (num, arr) {
+    var curr = arr[0];
+    var diff = Math.abs (num - curr);
+    for (var val = 0; val < arr.length; val++) {
+        var newdiff = Math.abs (num - arr[val]);
+        if (newdiff < diff) {
+            diff = newdiff;
+            curr = arr[val];
+        }
+    }
+    return curr;
+}
+
+function brushed() {
+  var value = brush.extent()[0];
+  // continuous position updating on drag
+  if (d3.event.sourceEvent) { // not a programmatic event
+    value = x.invert(d3.mouse(this)[0]);
+    brush.extent([value, value]);
+  }
+  handle.attr("cx", x(value));
+}
+
+function get_brushended(available_years) {
+  return function brushended() {
+    var value = closest(brush.extent()[0], available_years);
+    handle.attr("cx", x(value));
+    brush.extent([value, value]);
+    console.log(value);
+  }
+}
+
+function play() {
+  d3.select("#play_button")
+    .attr("value", "Pause")
+    .on("click", pause);
+
+  var start_year = closest(brush.extent()[0], available_years);
+  var start_ind = available_years.indexOf(start_year);
+  var loop_start_ind;
+  if (start_ind == available_years.length - 1) { loop_start_ind = 1; } 
+  else { loop_start_ind = start_ind + 1; } 
+
+  slider.call(brush.event)
+        .call(brush.extent([available_years[loop_start_ind-1], available_years[loop_start_ind-1]]))
+
+  var trans = slider.call(brush.event);
+  for (var i = loop_start_ind; i < available_years.length; i++) {
+    trans = trans.transition() // chain the transitions
+        .duration(750)
+        .call(brush.extent([available_years[i], available_years[i]]))
+        .call(brush.event)
+  }
+  trans.each("end", function() { d3.select("#play_button").attr("value", "Play").on("click", play) });
+}
+
+function pause() {
+  slider.transition()
+    .call(get_brushended(available_years));
+  d3.select("#play_button").attr("value", "Play").on("click", play);
+}
+
+</script>
