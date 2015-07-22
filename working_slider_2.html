@@ -77,8 +77,6 @@ var handle,
     moving,
     alpha = .4, // this determines how fast the handle moves when the user clicks/drags
     currentValue = available_years[0],
-    minValue = available_years[0],
-    maxValue = 2010,
     transitionDuration = 750;
 
 playButton = d3.select("#play_button");
@@ -108,9 +106,6 @@ var slider = svg.append("g")
     .attr("class", "slider")
     .call(brush);
 
-d3.select(window)
-    .on("keydown", keydowned);
-
 slider.selectAll(".extent,.resize")
     .remove();
 
@@ -122,8 +117,7 @@ handle = slider.append("circle")
     .attr("transform", "translate(0," + height / 2 + ")")
     .attr("r", 9);
 
-playButton.on("click", playPause)
-          .each(playPause);
+playButton.on("click", playPause);
 
 update_slider_years(available_years);
 
@@ -155,19 +149,13 @@ function closest (num, arr) {
 }
 
 function playPause() {
-  if (playButton.attr("class") == "fa fa-pause") {//slider.node().__transition__) {
-    slider.interrupt();
-    var closest_yr = closest(x.invert(handle.attr("cx")), available_years);
-    slider.transition()
-      .duration(0)
-      .call(brush.extent([closest_yr, closest_yr]))      
-      .call(brush.event)
-    playButton.attr("class", "fa fa-play");
+  if (playButton.attr("class") == "fa fa-pause") {
+    pauseAction();
   } else {
     playButton.attr("class", "fa fa-pause");
     var transition = slider.transition(),
-        curr = available_years.indexOf(closest(x.invert(handle.attr("cx")), available_years));
-    var sorted_years = (curr == available_years.length - 1 ? available_years : available_years.slice(curr, available_years.length));//.concat(sorted_years.slice(0, curr))
+        curr = available_years.indexOf(closest(x.invert(handle.attr("cx")), available_years)),
+        sorted_years = (curr == available_years.length - 1 ? available_years : available_years.slice(curr, available_years.length));
     for (var i = 0; i < sorted_years.length; i++) {
       var t1 = (i == 0 ? 0 : transitionDuration);
       var t2 = (curr != available_years.length - 1 && i == 0 ? 0 : transitionDuration);
@@ -183,18 +171,22 @@ function playPause() {
   }
 }
 
-function keydowned() {
-  if (d3.event.metaKey || d3.event.altKey) return;
-  playButton.attr("class", "fa fa-play");
+function pauseAction() {
   slider.interrupt();
-  move();
-  d3.event.preventDefault();
+  var closest_yr = closest(x.invert(handle.attr("cx")), available_years);
+  slider.transition()
+    .duration(0)
+    .call(brush.extent([closest_yr, closest_yr]))      
+    .call(brush.event)
+  playButton.attr("class", "fa fa-play");
 }
 
 function brushed() {
   if (d3.event.sourceEvent) { // not a programmatic event
     if (d3.event.sourceEvent.target.parentNode === this) { // clicked on the brush
-      playButton.attr("class", "fa fa-play");
+      if (playButton.attr("class") == "fa fa-pause") {
+        pauseAction();
+      }
       targetValue = closest(x.invert(d3.mouse(this)[0]), available_years);
       move();
     }
