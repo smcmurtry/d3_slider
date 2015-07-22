@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css"/>
+
+<style>
+
+#slider_container .axis {
+  font: 10px sans-serif;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+}
+
+#slider_container .axis .domain {
+  fill: none;
+  stroke: #000;
+  stroke-opacity: .3;
+  stroke-width: 10px;
+  stroke-linecap: round;
+}
+
+#slider_container .axis .halo {
+  fill: none;
+  stroke: #ddd;
+  stroke-width: 8px;
+  stroke-linecap: round;
+}
+
+#slider_container .slider .handle {
+  fill: #fff;
+  stroke: #000;
+  stroke-opacity: .5;
+  stroke-width: 1.25px;
+  cursor: crosshair;
+}
+
+#play_button_container {
+  height: 55px;
+  float: left;
+  margin-top: 15px;
+}
+
+#play_button {
+  width: 30px;
+  cursor: pointer;
+}
+
+</style>
+<body>
+<div id="slider_container">
+  <div id="play_button_container">
+    <i id="play_button" type="button" class="fa fa-play"></i>
+  </div>
+  <div id="slider"></div>
+</div>
+</body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
+<script>
+// this code relies heavily on http://bl.ocks.org/mbostock/6452972
+var margin = {top: 5, right: 20, bottom: 0, left: 20},
+    width = 600 - margin.left - margin.right,
+    height = 50 - margin.bottom - margin.top;
+
+var available_years = [2004, 2005, 2008, 2010, 2011, 2012];
+
+var x = d3.scale.linear()
+    .domain([2004, 2012])
+    .range([0, width])
+    .clamp(true);
+
+var brush = d3.svg.brush()
+    .x(x)
+    .on("brush", brushed);
+
+var handle,
+    playButton,
+    moving,
+    alpha = .4, // this determines how fast the handle moves when the user clicks/drags
+    currentValue = available_years[0],
+    minValue = available_years[0],
+    maxValue = 2010,
+    transitionDuration = 750;
+
+playButton = d3.select("#play_button");
+
+var svg = d3.select("#slider").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+var slider_xAxis = d3.svg.axis()
+      .scale(x)
+      .orient("bottom")
+      .tickSize(0)
+      .tickPadding(12);
+
+var slider_axis = svg.append("g")
+    .attr("class", "x axis")
+    .attr("transform", "translate(0," + height / 2 + ")")
+    .call(slider_xAxis);
+
+slider_axis.select(".domain")
+  .select(function() { return this.parentNode.appendChild(this.cloneNode(true)); })
+    .attr("class", "halo");
+
+var slider = svg.append("g")
+    .attr("class", "slider")
+    .call(brush);
+
+d3.select(window)
+    .on("keydown", keydowned);
+
+slider.selectAll(".extent,.resize")
+    .remove();
+
+slider.select(".background")
+    .attr("height", height);
+
+handle = slider.append("circle")
+    .attr("class", "handle")
+    .attr("transform", "translate(0," + height / 2 + ")")
+    .attr("r", 9);
+
+playButton.on("click", playPause)
+          .each(playPause);
+
+update_slider_years(available_years);
+
+
+function update_slider_years(available_years) {
+  brush.extent([available_years[0], available_years[0]])
+  slider_xAxis.tickFormat(get_available_tick_labels(available_years));
+  slider_axis.call(slider_xAxis);
+
+  function get_available_tick_labels(available_years) {
+    return function(d) {
+      if (available_years.indexOf(d) != -1) { return d; } 
+      else { return ''; }
+    }
+  }
+}
+
+function closest (num, arr) {
+    var curr = arr[0];
+    var diff = Math.abs (num - curr);
+    for (var val = 0; val < arr.length; val++) {
+        var newdiff = Math.abs (num - arr[val]);
+        if (newdiff < diff) {
+            diff = newdiff;
+            curr = arr[val];
+        }
+    }
+    return curr;
+}
+
+function playPause() {
+  if (playButton.attr("class") == "fa fa-pause") {//slider.node().__transition__) {
+    slider.interrupt();
+    var closest_yr = closest(x.invert(handle.attr("cx")), available_years);
+    slider.transition()
+      .duration(0)
+      .call(brush.extent([closest_yr, closest_yr]))      
+      .call(brush.event)
+    playButton.attr("class", "fa fa-play");
+  } else {
+    playButton.attr("class", "fa fa-pause");
+    var transition = slider.transition(),
+        curr = available_years.indexOf(closest(x.invert(handle.attr("cx")), available_years));
+    var sorted_years = (curr == available_years.length - 1 ? available_years : available_years.slice(curr, available_years.length));//.concat(sorted_years.slice(0, curr))
+    for (var i = 0; i < sorted_years.length; i++) {
+      var t1 = (i == 0 ? 0 : transitionDuration);
+      var t2 = (curr != available_years.length - 1 && i == 0 ? 0 : transitionDuration);
+      transition = transition.transition()
+        .duration(t1)
+        .call(brush.extent([sorted_years[i], sorted_years[i]]))
+        .call(brush.event)
+        .transition()
+        .duration(t2)
+        .call(brush.event);
+    };
+    transition.each("end", function() { playButton.attr("class", "fa fa-play") });
+  }
+}
+
+function keydowned() {
+  if (d3.event.metaKey || d3.event.altKey) return;
+  playButton.attr("class", "fa fa-play");
+  slider.interrupt();
+  move();
+  d3.event.preventDefault();
+}
+
+function brushed() {
+  if (d3.event.sourceEvent) { // not a programmatic event
+    if (d3.event.sourceEvent.target.parentNode === this) { // clicked on the brush
+      playButton.attr("class", "fa fa-play");
+      targetValue = closest(x.invert(d3.mouse(this)[0]), available_years);
+      move();
+    }
+  } else {
+    currentValue = brush.extent()[0];
+    handle.attr("cx", x(currentValue));
+  }
+}
+
+function move() {
+  var copyValue = currentValue; // detect interrupt
+  if (moving) return false;
+  moving = true;
+
+  d3.timer(function() {
+    if (copyValue !== currentValue) return !(moving = false);
+
+    copyValue = currentValue = Math.abs(currentValue - targetValue) < 1e-3
+        ? targetValue
+        : targetValue * alpha + currentValue * (1 - alpha);
+
+    slider
+        .call(brush.extent([currentValue, currentValue]))
+        .call(brush.event)
+
+    return !(moving = currentValue !== targetValue);
+  });
+}
+
+</script>
